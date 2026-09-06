@@ -60,19 +60,34 @@ Book Receipt（阅读小票）是一款面向 KOReader 的墨水屏插件，将�
 
 ---
 
-## 📦 安装
+## 📦 下载与安装
 
-### 方法一：直接复制
+### 最新版本：v0.2.0
+
+[![Release](https://img.shields.io/badge/release-v0.2.0-brightgreen)](https://github.com/ksaMask123/book-receipt.koplugin/releases/tag/v0.2.0)
+
+**下载方式：**
+
+- 📥 [tar.gz 压缩包](https://github.com/ksaMask123/book-receipt.koplugin/releases/download/v0.2.0/book-receipt.koplugin-v0.2.0.tar.gz) (166KB)
+- 📥 [zip 压缩包](https://github.com/ksaMask123/book-receipt.koplugin/archive/refs/tags/v0.2.0.zip)
+- 🔗 [Release 页面](https://github.com/ksaMask123/book-receipt.koplugin/releases/tag/v0.2.0)
+
+### 安装方法
+
+解压后将 `book-receipt.koplugin` 目录复制到 KOReader 的 plugins 目录：
 
 ```bash
-# 复制插件到 KOReader plugins 目录
+# 解压 tar.gz
+tar -xzf book-receipt.koplugin-v0.2.0.tar.gz
+
+# 复制到 KOReader plugins 目录
 cp -r book-receipt.koplugin /path/to/koreader/plugins/
 
 # 或使用 rsync
 rsync -av book-receipt.koplugin/ /path/to/koreader/plugins/
 ```
 
-### 方法二：从 appstore 安装
+### 从 appstore 安装
 
 如果已安装 [appstore.koplugin](https://github.com/ksaMask123/appstore.koplugin)，可在插件商店中搜索「Book Receipt」一键安装。
 
