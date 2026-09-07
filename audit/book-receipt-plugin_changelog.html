@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="T2t0gY33fAd9quxDP9iweQ">
+<head data-page-node-id="sjsK4FcpcuFI4bS6Wtl6Xm">
+    <meta charset="UTF-8" data-page-node-id="84Q6CCOANSdHsjGEvpDkll">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="dkD3WDvNn2iXQl42CPYrXD">
+    <title>Book Receipt 插件 - 更新日志</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 {
+            color: #00d4ff;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .version {
+            background: linear-gradient(135deg, #16213e, #0f3460);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #00d4ff;
+        }
+        .version-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .version-tag {
+            background: #00d4ff;
+            color: #1a1a2e;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .version-date {
+            color: #888;
+            font-size: 14px;
+        }
+        .change-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+        .type-new { background: #28a745; color: white; }
+        .type-fix { background: #ffc107; color: #1a1a2e; }
+        .type-improve { background: #17a2b8; color: white; }
+        ul { list-style: none; padding-left: 0; }
+        li {
+            padding: 6px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #00d4ff;
+        }
+        .section-title {
+            color: #ffd700;
+            font-size: 16px;
+            margin: 15px 0 10px 0;
+            font-weight: bold;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        code {
+            background: #2a2a4e;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "SF Mono", Monaco, monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body data-page-node-id="5eBi4EL7nzqQSH3CfQ6Uuv">
+    <div class="container" data-page-node-id="81q0gS4Sn49zJ5biBZL6r7">
+        <h1 data-page-node-id="EWVaqSRtnkCSYTDD05yJzA">📖 Book Receipt 插件更新日志</h1>
+
+        <div class="version">
+            <div class="version-header">
+                <span class="version-tag">v0.2.3</span>
+                <span class="version-date">2026-09-07</span>
+            </div>
+            <h3>月票：日期数字被封面遮挡（顶部预留日期条）</h3>
+            <div class="change-item">
+                <span class="badge badge-fix">修复</span>
+                <strong>问题现象</strong>
+                <p style="margin:6px 0 0">用户真机反馈：一天读 2 本时，日期数字<strong>上半截可见、下半截与书籍封面重叠</strong>，
+                    v0.2.2 设计的「白底小牌」在该情况下未起到遮挡隔离作用。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">根因</span>
+                <strong>封面顶边压在数字上</strong>
+                <p style="margin:6px 0 0">按 KPW3 竖屏实测缩放（s=1.030 / sy=1.317，格子真实 107.7×112.2 像素）反推：
+                    双书并排时封面顶边位于格子顶部下方约 13.9 虚拟像素处，而日期白牌底边在 17 处，
+                    两者<strong>几乎相切、存在约 0.1 像素的重叠</strong>；单本时封面更是垂直占满整个格子
+                    （顶边即格子顶），同样压住数字。白底牌尺寸本就紧贴数字边缘，一旦封面顶边上移即被盖过。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">方案</span>
+                <strong>仅 2 本及以上让出日期条，单本保持占满</strong>
+                <p style="margin:6px 0 0">按用户指示「把双书情况下的书籍封面整体下移，露出数字」，并按用户后续取舍
+                    「<strong>只有 2 本及以上才下移、单本保持占满</strong>」定稿：</p>
+                <ul style="margin:6px 0 0;padding-left:20px">
+                    <li>新增常量 <code>DAY_BAR_H = 16</code>（虚拟坐标）；按当日书本数决定预留量：
+                        <code>bar = (n &gt;= 2) and DAY_BAR_H or 0</code></li>
+                    <li>封面盒子：<code>by = cy + CELL_PAD + bar</code>，<code>bh</code> 同步减去 <code>bar</code></li>
+                    <li>单本 <code>bar = 0</code>，封面垂直铺满整格（尺寸维持 75×104，不缩小）；
+                        日期白牌在封面之后绘制，仍覆盖于其上</li>
+                    <li>占位灰牌共用同一盒子，与封面保持对齐</li>
+                    <li>日期白牌加大并随位数自适应：一位数宽 19、两位数宽 25，高度统一 16，
+                        数字仍绘制在 <code>cx+6, cy+5</code>，与无阅读日的日期数字位置完全一致</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">影响</span>
+                <strong>最终尺寸（真实像素）</strong>
+                <ul style="margin:6px 0 0;padding-left:20px">
+                    <li>单本：<strong>75×104</strong>（占满格子，与改造前一致，不缩小）</li>
+                    <li>双书并排：各 <strong>48×67</strong> —— 尺寸与下移前完全一致，仅整体下移让出日期条</li>
+                    <li>扇形叠放（3 本及以上）：每张 52×72</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">验证</span>
+                <strong>几何桩测试全绿（PASS=18 / FAIL=0）</strong>
+                <ul style="margin:6px 0 0;padding-left:20px">
+                    <li>多本日（2 本 / 4 本）：封面顶边 ≥ 白牌底边，<strong>零重叠</strong></li>
+                    <li>单本日：封面顶边贴合格子内沿（误差 ≤2px），确认<strong>恢复占满</strong>且尺寸回到 75×104</li>
+                    <li>所有格子：白牌绘制序号均大于同格封面（<strong>绘制顺序在后</strong>）</li>
+                    <li><code>luajit -bl month.lua</code> 语法 PASS；G 盘无 .bak 残留</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="version">
+            <div class="version-header">
+                <span class="version-tag">v0.2.2</span>
+                <span class="version-date">2026-09-07</span>
+            </div>
+            <div class="section-title"><span class="change-type type-new">重构</span>月票日历改为「书封即格子」（借鉴 covercalendar.koplugin）</div>
+            <ul>
+                <li>背景：原月票用 16px 高的横向「跨度条」显示书名，格子约 105×85 虚拟单位，书名只能截 3~4 字，观感为「窄窄一条」</li>
+                <li>新布局（用户拍板）：1 本 → 单张大图；2 本 → 左右并排；3 本及以上 → 扇形叠放（封顶 3 张）；超出部分右下角 <code>+N</code> 角标</li>
+                <li>日期数字：改为白底小圆角牌（21×14 虚拟单位）叠在封面左上角，<strong>不预留数字条</strong>，封面可吃满格子；无阅读的日期仍为原样式纯数字</li>
+                <li>排序：沿用 SQL 的 <code>ORDER BY day, durations DESC</code>，即每天读得最多的书排最前（并排时靠左、叠放时在最上层）</li>
+                <li>跨天连读：取消原跨度条，同一本书在它跨的每个格子里各放一张同封面；<code>rlCalendarWeeks</code> 的 lane 逻辑整段移除，代码更简</li>
+                <li>取不到封面时：回退浅灰书名占位牌（占满格子，书名按 painter.M 实测宽度最多两行，超出加省略号）</li>
+            </ul>
+            <div class="section-title"><span class="change-type type-new">新增</span>lib/cover_helper.lua（封面能力共用化）</div>
+            <ul>
+                <li>把 v0.2.1 单书票里的书名→路径映射、Kindle 侧车缩略图、封面控件获取抽成共享模块，单书票与月票共用一套链路（book.lua 已改为委托调用，删除重复实现）</li>
+                <li>新增单次渲染封面缓存 <code>newCoverCache()</code>：同一本书跨多个日期格只解码一次；取不到的路径只尝试一次；渲染结束统一 free（ImageWidget 默认 image_disposable=true，不释放会漏内存）</li>
+                <li>新增<strong>按需抽取封面</strong>：<code>rl.getBookCoverFromPath</code> 只读 CoverBrowser 缓存，实测本机 460 本缓存书目中仅 59 本有封面、近 90 天读过的 29 本中仅 13 本命中（约 45%），故对未命中的书触发一次 <code>BIM.extractBookInfo</code>（子进程执行、结果持久化到 BIM 库）</li>
+                <li>防卡顿三重保护：每轮渲染最多抽取 3 本；同一本书一个会话内只尝试一次；<code>cover_fetched</code> 已标记的书不再重试</li>
+            </ul>
+            <div class="section-title"><span class="change-type type-fix">验证</span>语法校验 + 桩测试全绿</div>
+            <ul>
+                <li>luajit -bl：month.lua / book.lua / cover_helper.lua 三文件 SYNTAX OK</li>
+                <li>桩测试（假 painter 记录绘制调用，真跑 month.render）：封面 6 张、占位牌 1 个、+N 角标 1 个全部符合预期；6 张封面宽高比均为 0.72（rl.getBookCoverFromPath 会拉伸，须按比例给尺寸，否则变形）</li>
+                <li>尺寸层级（KPW3 竖屏真实像素，格子约 108×110）：单本 75×104 ＞ 扇形单张 67×93 ＞ 并排单张 48×67</li>
+                <li>按需抽取单测：限额 3/轮生效、同书去重、已标记跳过 → 实抽 3 本</li>
+            </ul>
+            <div class="section-title"><span class="change-type type-fix">说明</span>部署与待实测</div>
+            <ul>
+                <li>本次按用户授权<strong>只改 G 盘</strong>，E 副本未动（故 E 副本当前落后于 G，待真机确认后再决定是否同步）</li>
+                <li>改前已备份 G 盘至 <code>E:/Download/AIWorkshop/koreader/plugins/_backup_book-receipt_g_20260907_2114/</code></li>
+                <li>待实测：月票各格封面是否清晰、2 本并排与 3 本以上扇形是否美观、灰牌回退是否合理、首次渲染是否因抽取变慢（每轮限 3 本）</li>
+                <li>封面命中情况会写入 crash.log：<code>[BookReceipt] 月票封面命中 N/M</code>，可用于判断是否需要提高抽取限额</li>
+            </ul>
+        </div>
+
+        <div class="version">
+            <div class="version-header">
+                <span class="version-tag">v0.2.1</span>
+                <span class="version-date">2026-09-07</span>
+            </div>
+            <div class="section-title"><span class="change-type type-fix">修复</span>单书行程票超长书名与右侧元素重叠（真机反馈）</div>
+            <ul>
+                <li>现象：超长书名单行直出，与右侧「当前进度」百分比区重叠</li>
+                <li>根因：书名渲染（book.lua）单行直出且宽度估算按「全角字宽=字号」计算，用户字体（小熊甜茶心动体）实际字宽更大，估算系统性偏小</li>
+                <li>修复：新增 <code>splitTitleLines</code>，书名最多两行（行宽 460 虚拟单位，止步于「当前进度」区 x=776 之前）；切行用 painter.M（TextWidget 实测渲染宽度），不依赖字宽估算；超两行末行减字加省略号截断</li>
+                <li>配套：作者行 y=282 → 308，为第二行书名让位；与 facts 区（y=368）无冲突</li>
+            </ul>
+            <div class="section-title"><span class="change-type type-new">新增</span>单书行程票封面（真机需求）</div>
+            <ul>
+                <li>封面获取优先级：① 书籍元数据封面（<code>rl.getBookCoverFromPath</code>：CoverBrowser 缓存 → DocumentRegistry 提取，与站台样式同链路）→ ② Kindle 原生侧车缩略图（<code>&lt;dir&gt;/&lt;base&gt;.sdr/&lt;base&gt;-thumbnail_te.png</code> 等 4 种候选）→ ③ 均无时回退原竖排书名占位框</li>
+                <li>书名→文件路径映射：遍历阅读历史（readhistory），CoverBrowser 书库信息反查书名，未装时退化为文件名匹配；模块级缓存 60 秒防重复构建</li>
+                <li>封面按占位框（148×125）内 0.72 宽高比居中绘制；全程 pcall 保护，失败静默回退占位</li>
+            </ul>
+            <div class="section-title"><span class="change-type type-fix">修复</span>阅读时长文本过长挤压右侧字段（真机反馈，全部票型）</div>
+            <ul>
+                <li>现象：年票「18小时49分」与相邻「ACTIVE DAYS 15天」挤压重叠；日/周/月/单书/屏保票同源问题</li>
+                <li>修复：<code>rlTime</code>（rl_reference.lua，全部票型唯一时长出口）统一换算为仅「小时」单位：&lt;60s → 「0小时」；&lt;24h → 1 位小数（如 <code>18.8小时</code>，去尾 .0）；≥24h → 整数（如 <code>50小时</code>）</li>
+            </ul>
+            <div class="section-title"><span class="change-type type-improve">验证</span>语法 + 逻辑桩测试</div>
+            <ul>
+                <li>luajit -bl 语法校验：book.lua / rl_reference.lua 均 PASS</li>
+                <li>逻辑桩测试：rlTime 11 用例全 PASS（含 67746s→18.8小时、86400s→24小时边界）；splitTitleLines 4 用例全 PASS（1.5 倍宽系数拆两行且行宽 ≤460、1.0 倍宽单行、60 字两行封顶+省略号、空书名）</li>
+            </ul>
+            <div class="deploy-note">部署：用户授权直接修改 G 盘真机（E 副本 book-receipt.koplugin 为备份，未动）。改动文件：tickets/book.lua、lib/rl_reference.lua。</div>
+        </div>
+
+        <div class="version" data-page-node-id="iHcbgnQUjIsfEA6IsJwzRl">
+            <div class="version-header" data-page-node-id="yOjig6aAQlo3KEHeGzmhFj">
+                <span class="version-tag" data-page-node-id="JZuusOE9G72uM2NIszLwBi">v0.2.0</span>
+                <span class="version-date" data-page-node-id="AtGcIy2mofzjfBNs8XlUrm">2026-09-04</span>
+            </div>
+            <div class="section-title" data-page-node-id="lgkVbA3m07zZtQfpziaBwr"><span class="change-type type-new" data-page-node-id="S2sorNfxg9cHydWcFgphYx">新增</span>完整功能迁移</div>
+            <ul data-page-node-id="JOb18zPhBltFCv5mEFE6Ds">
+                <li data-page-node-id="EZfGFGzI1mDYHWrW5odrah">从补丁 <code data-page-node-id="gNi4EhQpKLYMgQHczDXcfC">2-book-receipt-shortcut-and-lockscreen.lua</code> 完整迁移所有样式和票型</li>
+                <li data-page-node-id="psEj0HZGVzNbf2HUVItahc">实现三种模式：固定 / 随机 / 轮流出现</li>
+                <li data-page-node-id="U6DinEgEEzJA0ACddCUlFa">支持锁屏和手势调出两种触发方式</li>
+                <li data-page-node-id="MqPr7ETbLuYBvsD0RqOrjx">新增开放注册表接口，其他插件可动态注入票型</li>
+            </ul>
+            <div class="section-title" data-page-node-id="u6HzeZ7l2UmJy88e8HIWyW"><span class="change-type type-new" data-page-node-id="6qZDXMsdsWdCBDa0RxGpgT">新增</span>样式模块</div>
+            <ul data-page-node-id="DaF3LFOu2rEqXYgRBvlFB6">
+                <li data-page-node-id="x9M2NoNjncC41JDDz2LEBJ">胶片票根（film）：经典复古风格，显示书籍封面和进度</li>
+                <li data-page-node-id="eFMPfFFXNbr8uElwtWNZAy">墨痕壁纸（inkstain）：全屏阅读统计，含折线图和诗句</li>
+                <li data-page-node-id="sQ0EUfL9LYewwUCBVUR5Je">菜单样式（menu）：留台单风格，展示菜谱和名言</li>
+            </ul>
+            <div class="section-title" data-page-node-id="kJV7FaEQ7pIu2GEzaCNMlh"><span class="change-type type-new" data-page-node-id="zJJOtNcaUeezcLoMO01lij">新增</span>票型模块</div>
+            <ul data-page-node-id="YFNBlHTYD314NoyQcnrYyK">
+                <li data-page-node-id="XZuMaE2g8SUJkIJaulHM69">日票（day）：当日阅读轨迹</li>
+                <li data-page-node-id="R6JVKWQ1gGjgkm7WaWH1au">周票（week）：七日活动日历</li>
+                <li data-page-node-id="c6nucBytEVvRrd3z7J8xbF">月票（month）：月度统计汇总</li>
+                <li data-page-node-id="DCK7L0HD5hucDCc9TkbpcI">年票（year）：年度热力图</li>
+                <li data-page-node-id="6Sz0ULY9KLDQ1cBBHEg05s">单书行程票（book）：单本书的阅读旅程</li>
+                <li data-page-node-id="Op3ntmUFYg6UTCTXM03P36">阅读屏保票（screen）：全屏阅读历史</li>
+            </ul>
+            <div class="section-title" data-page-node-id="V0ABsvCqmuQWJRVWKzurDd"><span class="change-type type-improve" data-page-node-id="YYHkSOt73EfgjkXOIkGMDr">改进</span>架构优化</div>
+            <ul data-page-node-id="hUUL8cHLibRYVvWcmUTAjI">
+                <li data-page-node-id="1pp4oazI3hKaiNVRE9l1Y4">模块化设计：lib/tickets/styles 分离</li>
+                <li data-page-node-id="qSGC2TvpL86bFjbCiCoMg5">完整移植 rlReferencePainter 坐标系系统</li>
+                <li data-page-node-id="etpSFEafFCHT5Ksn0saU3N">移植诗词/菜谱/名言数据及解析逻辑</li>
+                <li data-page-node-id="REthlIvDgjUT0zArPoyWyp">实现 QR码、条码绘制引擎</li>
+            </ul>
+            <div class="stats" data-page-node-id="odV7lb2OzkHq7iQ0e0u0Tt">
+                <div class="stat-card" data-page-node-id="jtD8mxdo8oJ9cTJWDL7NGm">
+                    <div class="stat-number" data-page-node-id="sGb9wT8Tgs1MseVcBJA7K3">6</div>
+                    <div class="stat-label" data-page-node-id="VhhCUDSNZXKzIJm6l1jZ97">票型模块</div>
+                </div>
+                <div class="stat-card" data-page-node-id="cQ5do5WClPuEAUt3VvWr07">
+                    <div class="stat-number" data-page-node-id="ciIM5d3be91XL7qJaaiNg0">3</div>
+                    <div class="stat-label" data-page-node-id="hsIujCnuyuy2ydrEWDpG0G">样式模块</div>
+                </div>
+                <div class="stat-card" data-page-node-id="uUkCUHn18fCX1wc6vwxd2O">
+                    <div class="stat-number" data-page-node-id="bs3ixe9jymukFxgtsJ4Rka">3</div>
+                    <div class="stat-label" data-page-node-id="KFokTfS6KRFl4QMGiKffvK">模式支持</div>
+                </div>
+                <div class="stat-card" data-page-node-id="sw7vLLGUKAU0Vcr5siypvK">
+                    <div class="stat-number" data-page-node-id="ujFoAScsUAGIUSLshyhefu">95KB</div>
+                    <div class="stat-label" data-page-node-id="mHJmP4LrEhd6FYMvj71v7Q">代码总量</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="version" data-page-node-id="GHjHGQec0fNdB1lawouHOQ">
+            <div class="version-header" data-page-node-id="jb7AF8i26sZI5K5CD2yCLj">
+                <span class="version-tag" data-page-node-id="8GplpE1YHAF8iC2ndDO0Cj">v0.1.0</span>
+                <span class="version-date" data-page-node-id="wPGZu9APf0pCDnixOyJh1o">2026-09-04</span>
+            </div>
+            <div class="section-title" data-page-node-id="hUk42Tbbeps5QRbLGCrZnT"><span class="change-type type-new" data-page-node-id="CuL7sDGqat1C9wF9rgRMP3">新增</span>插件骨架</div>
+            <ul data-page-node-id="d4O6G2quZLYYTWtsY3zLQk">
+                <li data-page-node-id="ADnxCp2EyBFj0Ndym19CXl">创建插件目录结构和元数据</li>
+                <li data-page-node-id="SV5CBY6VawJOOcu8XvBA5r">实现 TicketRegistry 注册表</li>
+                <li data-page-node-id="sI87PuEE0vn72SsAKlo3NJ">基础渲染框架</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

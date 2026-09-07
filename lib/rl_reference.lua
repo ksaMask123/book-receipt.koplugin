@@ -180,23 +180,20 @@ end
 -- ============================================================
 
 local function rlTime(seconds)
+    -- 统一换算为「小时」单位（2026-09-07）：避免「18小时49分」这类长文本
+    -- 与右侧字段（如 ACTIVE DAYS「15 天」）挤压重叠
     seconds = math.max(0, tonumber(seconds) or 0)
     if seconds < 60 then
-        return "0分钟"
-    elseif seconds < 3600 then
-        return string.format("%d分钟", math.floor(seconds / 60))
-    elseif seconds < 86400 then
-        local h = math.floor(seconds / 3600)
-        local m = math.floor((seconds % 3600) / 60)
-        if m > 0 then
-            return string.format("%d小时%d分", h, m)
-        end
-        return string.format("%d小时", h)
-    else
-        local d = math.floor(seconds / 86400)
-        local h = math.floor((seconds % 86400) / 3600)
-        return string.format("%d天%d小时", d, h)
+        return "0小时"
     end
+    local hours = seconds / 3600
+    if hours < 24 then
+        -- 不足 24 小时保留 1 位小数（如 18.8小时），去掉尾随 .0
+        local txt = string.format("%.1f", math.floor(hours * 10 + 0.5) / 10)
+        txt = txt:gsub("%.0$", "")
+        return txt .. "小时"
+    end
+    return string.format("%d小时", math.floor(hours + 0.5))
 end
 
 local function rlDate(ts)

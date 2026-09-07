@@ -2,6 +2,70 @@
 
 local BB = require("ffi/blitbuffer")
 local rl = require("lib.rl_reference")
+local cover_helper = require("lib.cover_helper")
+
+-- ============================================================
+-- 封面绘制（取封面链路已抽到 lib/cover_helper.lua，供月票/单书票共用）
+-- 优先级：① 书籍元数据封面（CoverBrowser 缓存 / DocumentRegistry 提取）
+--        ② Kindle 原生侧车缩略图（documents/xxx.sdr/xxx-thumbnail_te.png）
+--        ③ 均无时退回原竖排书名占位框
+-- ============================================================
+
+-- 在封面占位框内绘制封面图；成功返回 true（失败由调用方回退竖排书名占位）
+local function paintCover(bb, p, title)
+    local ok_find, file_path = pcall(cover_helper.findBookFile, title)
+    if not ok_find or not file_path then return false end
+    -- 占位框虚拟坐标 91,231 ~ 239,356（148x125），内边距 6，保持书封约 0.72 宽高比
+    local cov_h = 113
+    local cov_w = math.floor(cov_h * 0.72)
+    local cov_x = 91 + math.floor((148 - cov_w) / 2)
+    local cov_y = 231 + 6
+    local sx, sy = p.X(cov_x), p.Y(cov_y)
+    local sw = math.max(1, math.floor(cov_w * p.s))
+    local sh = math.max(1, math.floor(cov_h * p.sy))
+    local ok_w, widget = pcall(cover_helper.getCoverWidget, file_path, sw, sh)
+    if ok_w and widget then
+        local ok_paint = pcall(widget.paintTo, widget, bb, sx, sy)
+        if widget.free then pcall(widget.free, widget) end
+        if ok_paint then return true end
+    end
+    return false
+end
+
+-- ============================================================
+-- 书名换行（2026-09-07 新增）
+-- 超长书名最多两行显示，按真实渲染宽度切分（经 painter.M 用 TextWidget
+-- 实测宽度，规避「全角字宽=字号」估算在用户字体下系统性偏小的问题），
+-- 超两行截断加省略号，避免单行直出与右侧「当前进度」区重叠
+-- ============================================================
+local function splitTitleLines(title, line_w, measure)
+    local chars = rl.utf8Chars(tostring(title or ""))
+    local lines, cur = {}, ""
+    local overflow = false
+    for i = 1, #chars do
+        local candidate = cur .. chars[i]
+        if cur ~= "" and measure(candidate) > line_w then
+            if #lines == 0 then
+                lines[1] = cur      -- 封第一行
+                cur = chars[i]      -- 第二行从此字起
+            else
+                overflow = true     -- 第二行也装不下
+                break
+            end
+        else
+            cur = candidate
+        end
+    end
+    if overflow then
+        local last_chars = rl.utf8Chars(cur)
+        if #last_chars > 1 then table.remove(last_chars) end
+        last_chars[#last_chars + 1] = "…"
+        lines[2] = table.concat(last_chars)
+    elseif cur ~= "" then
+        lines[#lines + 1] = cur
+    end
+    return lines
+end
 
 local function render(bb, x, y, w, h, book_title, ref_date)
     ref_date = ref_date or os.time()
@@ -101,13 +165,33 @@ local function render(bb, x, y, w, h, book_title, ref_date)
     p.L(91, 231, 91, 356, BB.COLOR_GRAY_3, 1)
     p.L(239, 231, 239, 356, BB.COLOR_GRAY_3, 1)
 
-    -- 书名
-    local cover_chars = rl.utf8Chars(book_title)
-    for i = 1, math.min(5, #cover_chars) do
-        p.T(cover_chars[i], 108, 239 + (i - 1) * 20, 12, true, 34, BB.COLOR_BLACK)
+    -- 封面：优先元数据封面 / Kindle 侧车缩略图，均无时回退竖排书名占位
+    local has_cover = false
+    local ok_cover, cover_result = pcall(paintCover, bb, p, book_title)
+    if ok_cover and cover_result then has_cover = true end
+    if not has_cover then
+        local cover_chars = rl.utf8Chars(book_title)
+        for i = 1, math.min(5, #cover_chars) do
+            p.T(cover_chars[i], 108, 239 + (i - 1) * 20, 12, true, 34, BB.COLOR_BLACK)
+        end
     end
-    p.T("《" .. book_title .. "》", 271, 244, 21, true, 445, BB.COLOR_BLACK)
-    p.T(author .. " · BOARDING DATE " .. first_date, 271, 282, 10, false, 445, BB.COLOR_GRAY_3)
+    -- 书名：最多两行（实测渲染宽度切分，行宽 460，右侧止步于「当前进度」区 x=776 之前）
+    -- measure 用 painter.M（TextWidget 真实测宽，屏幕像素 → 虚拟坐标），实测失败退回估算
+    local function measureTitleW(text)
+        local ok_m, w = pcall(p.M, text, 21, BB.COLOR_BLACK)
+        if ok_m and w and w > 0 then return w / p.s end
+        local est = 0
+        for _, ch in ipairs(rl.utf8Chars(text)) do
+            est = est + (ch:byte(1) >= 128 and 21 or 21 * 0.58)
+        end
+        return est
+    end
+    local title_lines = splitTitleLines("《" .. tostring(book_title or "") .. "》", 460, measureTitleW)
+    p.T(title_lines[1] or "", 271, 244, 21, true, 460, BB.COLOR_BLACK)
+    if title_lines[2] then
+        p.T(title_lines[2], 271, 272, 21, true, 460, BB.COLOR_BLACK)
+    end
+    p.T(author .. " · BOARDING DATE " .. first_date, 271, 308, 10, false, 445, BB.COLOR_GRAY_3)
     p.T("当前进度", 776, 238, 9, false, 125, BB.COLOR_GRAY_3)
     p.T(tostring(progress) .. "%", 776, 263, 29, true, 125, BB.COLOR_BLACK)
     p.R(776, 311, 118, 7, BB.COLOR_GRAY_E)
