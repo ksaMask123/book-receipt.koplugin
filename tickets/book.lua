@@ -1,8 +1,10 @@
 -- book.lua - 单书行程票渲染（移植自补丁 paintReadingBook）
 
 local BB = require("ffi/blitbuffer")
+local logger = require("logger")
 local rl = require("lib.rl_reference")
 local cover_helper = require("lib.cover_helper")
+local LOG_TAG = "[BookReceipt]"
 
 -- ============================================================
 -- 封面绘制（取封面链路已抽到 lib/cover_helper.lua，供月票/单书票共用）
@@ -67,7 +69,7 @@ local function splitTitleLines(title, line_w, measure)
     return lines
 end
 
-local function render(bb, x, y, w, h, book_title, ref_date)
+local function render(bb, x, y, w, h, book_title, ref_date, book_md5)
     ref_date = ref_date or os.time()
     local rows, ok = rl.readReadingDataAll()
     if not ok or not rows then
@@ -77,40 +79,57 @@ local function render(bb, x, y, w, h, book_title, ref_date)
         return
     end
 
-    -- 尝试用 md5 匹配（更可靠），回退到标题匹配
+    -- 匹配优先级：① md5（同一 md5 必为同一本书，不受重名/书名改动影响）
+    --             ② 书名精确匹配  ③ 书名子串匹配（去标点空格后互相包含，处理编码差异）
     local selected = {}
-    if book_title and book_title ~= "" then
-        -- 先尝试精确匹配
+    local matched_by = nil
+    if book_md5 and book_md5 ~= "" then
+        for _, row in ipairs(rows) do
+            if row.md5 and row.md5 ~= "" and row.md5 == book_md5 then
+                selected[#selected + 1] = row
+            end
+        end
+        if #selected > 0 then matched_by = "md5" end
+    end
+    if #selected == 0 and book_title and book_title ~= "" then
         for _, row in ipairs(rows) do
             if row.title == book_title then
                 selected[#selected + 1] = row
             end
         end
-        -- 如果精确匹配没结果，尝试子串匹配（处理编码差异）
-        if #selected == 0 then
-            for _, row in ipairs(rows) do
-                local rtitle = row.title or ""
-                local btitle = book_title or ""
-                if rtitle ~= "" and btitle ~= "" then
-                    -- 去除标点空格后比较
-                    local rnorm = rtitle:gsub("[%s%p]", ""):lower()
-                    local bnorm = btitle:gsub("[%s%p]", ""):lower()
-                    if rnorm == bnorm or rnorm:find(bnorm) or bnorm:find(rnorm) then
-                        selected[#selected + 1] = row
-                    end
+        if #selected > 0 then matched_by = "title" end
+    end
+    if #selected == 0 and book_title and book_title ~= "" then
+        for _, row in ipairs(rows) do
+            local rtitle = row.title or ""
+            local btitle = book_title or ""
+            if rtitle ~= "" and btitle ~= "" then
+                -- 去除标点空格后比较
+                local rnorm = rtitle:gsub("[%s%p]", ""):lower()
+                local bnorm = btitle:gsub("[%s%p]", ""):lower()
+                if rnorm == bnorm or rnorm:find(bnorm) or bnorm:find(rnorm) then
+                    selected[#selected + 1] = row
                 end
             end
         end
+        if #selected > 0 then matched_by = "fuzzy" end
     end
 
-    -- 如果还是没匹配到，取最新一条
+    -- 全部落空：不再回退「库里最新的一条」（那会把整张票画成上一本书），
+    -- 改为用当前书名构造一条零数据记录 —— 票面仍是当前书，只是统计为空
+    local is_empty = false
     if #selected == 0 then
-        local latest = rows[#rows]
-        if latest then
-            selected[#selected + 1] = latest
-            book_title = latest.title or "暂无阅读记录"
-        end
+        is_empty = true
+        selected[1] = {
+            rowid = 0, time = os.time(), source_time = os.time(), duration = 0,
+            page = 0, display_page = 0, source_pages = 0, local_pages = 0, pages = 0,
+            id = 0, title = tostring(book_title or "未知书籍"),
+            total_time = 0, total_pages = 0, authors = "", md5 = tostring(book_md5 or ""),
+        }
     end
+    logger.info(LOG_TAG, "单书票匹配:", matched_by or "none(空数据)",
+                "title=", tostring(book_title), "md5=", tostring(book_md5),
+                "rows=", tostring(#selected))
 
     local first, last = selected[1], selected[#selected]
     if not first then
@@ -191,7 +210,11 @@ local function render(bb, x, y, w, h, book_title, ref_date)
     if title_lines[2] then
         p.T(title_lines[2], 271, 272, 21, true, 460, BB.COLOR_BLACK)
     end
-    p.T(author .. " · BOARDING DATE " .. first_date, 271, 308, 10, false, 445, BB.COLOR_GRAY_3)
+    if is_empty then
+        p.T("本书暂无阅读记录 · 继续阅读或待机后自动统计", 271, 308, 10, false, 445, BB.COLOR_GRAY_3)
+    else
+        p.T(author .. " · BOARDING DATE " .. first_date, 271, 308, 10, false, 445, BB.COLOR_GRAY_3)
+    end
     p.T("当前进度", 776, 238, 9, false, 125, BB.COLOR_GRAY_3)
     p.T(tostring(progress) .. "%", 776, 263, 29, true, 125, BB.COLOR_BLACK)
     p.R(776, 311, 118, 7, BB.COLOR_GRAY_E)
@@ -200,9 +223,9 @@ local function render(bb, x, y, w, h, book_title, ref_date)
 
     local facts = {
         { "BOARDING DATE", "出发日期", first_date },
-        { "READING TIME", "阅读时长", rl.rlTime(seconds) },
-        { "VISITS", "阅读次数", tostring(#journeys) },
-        { "AVG. VISIT", "平均单次", rl.rlTime(average) },
+        { "READING TIME", "阅读时长", is_empty and "—" or rl.rlTime(seconds) },
+        { "VISITS", "阅读次数", is_empty and "—" or tostring(#journeys) },
+        { "AVG. VISIT", "平均单次", is_empty and "—" or rl.rlTime(average) },
     }
     for i, item in ipairs(facts) do
         local cx = 91 + (i - 1) * 201

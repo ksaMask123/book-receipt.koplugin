@@ -19,6 +19,7 @@ local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 local rl = require("lib.rl_reference")
 local font_pref = require("lib.font_pref")
+local open_book = require("lib.open_book")
 
 local LOG_TAG = "[BookReceipt.Station]"
 
@@ -213,6 +214,42 @@ local function buildTitlePathMap()
     return map
 end
 
+-- 构建 md5→文件路径 映射（书名反查失败时的兜底）
+-- statistics 的 book.md5 与 DocSettings 的 partial_md5_checksum 同源，
+-- 比"书名字符串比对"可靠得多（两边标题来源不同，经常对不上）。
+-- 采用官方 statistics.koplugin main.lua L828 的两级策略：先读 sidecar（快），
+-- 没有再调 util.partialMD5 现算（慢）。进程内缓存，只在确实需要时才建表。
+local _md5_path_cache = nil
+
+local function md5PathMap()
+    if _md5_path_cache then return _md5_path_cache end
+    _md5_path_cache = {}
+    local ok_rh, readhistory = pcall(require, "readhistory")
+    if not ok_rh or not readhistory or not readhistory.hist then return _md5_path_cache end
+    local ok_ds, DocSettings = pcall(require, "docsettings")
+    local ok_u, util = pcall(require, "util")
+    for _, entry in ipairs(readhistory.hist or {}) do
+        local file = entry and entry.file
+        if file and file ~= "" then
+            local sum
+            if ok_ds and DocSettings.hasSidecarFile and DocSettings:hasSidecarFile(file) then
+                local ok_open, ds = pcall(DocSettings.open, DocSettings, file)
+                if ok_open and ds and ds.readSetting then
+                    sum = ds:readSetting("partial_md5_checksum")
+                end
+            end
+            if (not sum or sum == "") and ok_u and util and util.partialMD5 then
+                local ok_md5, computed = pcall(util.partialMD5, file)
+                if ok_md5 then sum = computed end
+            end
+            if sum and sum ~= "" and not _md5_path_cache[sum] then
+                _md5_path_cache[sum] = file
+            end
+        end
+    end
+    return _md5_path_cache
+end
+
 -- 获取书籍列表（从 SQL 数据库直接取书名，避免 DocumentRegistry 的沉重开销）
 -- 这是原补丁的正确实现方式：直接从 statistics.sqlite3 读取 title 字段
 -- title_path_map（可选）：书名→文件路径映射，用于封面提取
@@ -224,6 +261,14 @@ local function getBookList(title_path_map)
         logger.warn(LOG_TAG, "无法读取阅读数据")
         return books
     end
+    -- 书名命中优先；对不上再查 md5（懒加载映射表）
+    local md5_map
+    local function pathFor(row)
+        local p = title_path_map and title_path_map[row.title or ""]
+        if p then return p end
+        if not md5_map then md5_map = md5PathMap() end
+        return md5_map[row.md5 or ""]
+    end
     -- 按时间分组，取每本书最新一条
     local latest = {}
     for _, row in ipairs(rows) do
@@ -231,7 +276,7 @@ local function getBookList(title_path_map)
         local last_ts = (latest[book_id] and latest[book_id].time or 0)
         if row.time and row.time > last_ts then
             latest[book_id] = {
-                path = title_path_map and title_path_map[row.title or ""] or nil,  -- 用于封面提取
+                path = pathFor(row),  -- 用于封面提取与点击打开
                 title = row.title or "",  -- 书名直接从 SQL 获取，保证正确显示
                 authors = row.authors or "",
                 percent = 0,
@@ -335,6 +380,26 @@ local function paintHomeStation(bb, x, y, width, height, books, ref_date, curren
     table.sort(recent, function(a,b) return (tonumber(a.last_read) or 0) > (tonumber(b.last_read) or 0) end)
     
     local current = getCurrentBook(recent)
+    -- 正在阅读优先跟随"当前真正打开的书"（ui.document.file）。
+    -- 统计库要攒满 50 次翻页才落库，刚换的新书库里没有记录，
+    -- 此时 getCurrentBook 会返回上一本书 → 面板显示错书、继续阅读开错书。
+    if current_path and current_path ~= "" then
+        local hit
+        for _, b in ipairs(recent) do
+            if b.path == current_path then hit = b; break end
+        end
+        if hit then
+            current = hit          -- 库里已有这本书 → 用它，保留统计数字
+        else
+            local t = current_title
+            if not t or t == "" then
+                local base = tostring(current_path):match("^.*/([^/]+)$") or tostring(current_path)
+                t = base:match("^(.+)%.[^%.]+$") or base
+            end
+            current = { path = current_path, title = t, authors = "",
+                        percent = 0, last_read = os.time() }
+        end
+    end
     local stats = computeHomeStatisticsSnapshot(ref_date)
     
     -- 固定四个板块（不依赖 self:homeBoardSlots）
@@ -450,10 +515,13 @@ local function paintHomeStation(bb, x, y, width, height, books, ref_date, curren
             VR(810,body_top,body_h,1,mid); local box_h=math.min(96,body_h-22); local box_y=cover_y+math.max(4,math.floor((cover_h-box_h)/2))
             dashed(825,box_y,132,box_h,mid); CT("CONTINUE",825,box_y+12,132,8,false); CT("继续阅读",825,box_y+32,132,9,true); CT("▶",825,box_y+52,132,17,true)
             -- 注册 CONTINUE 按钮点击区域（参照原插件 addAction 架构）
-            if current and current.path and current.path ~= "" then
+            -- 优先用真实当前书路径 current_path（ui.document.file），
+            -- 统计库推断的 current.path 在换书未落库时会指向上一本书
+            local continue_path = (current_path and current_path ~= "" and current_path)
+                               or (current and current.path) or nil
+            if continue_path then
                 addAction(825, box_y, 132, box_h, function()
-                    local Utils = require("frontend/ui/utils")
-                    Utils.openBookThroughFileManager(nil, current.path)
+                    open_book.openBook(current_path, continue_path)
                 end)
             end
         end

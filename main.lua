@@ -22,6 +22,7 @@ local ScreenSaverWidget = require("ui/widget/screensaverwidget")
 local TextWidget = require("ui/widget/textwidget")
 local UIManager = require("ui/uimanager")
 local logger = require("logger")
+local open_book = require("lib.open_book")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 
@@ -229,6 +230,26 @@ local function loadStyleModules()
     end
 end
 
+-- 获取当前活动书籍的 md5（statistics 库里 book.md5 同源：DocSettings 的 partial_md5_checksum）
+-- 用途：单书票锁定统计记录时以 md5 为准，避免重名/书名改动导致匹配到别的书
+-- 取值顺序：① 统计插件已算好的 ui.statistics.doc_md5  ② 自己从 DocSettings 读
+-- 全程 pcall 保护，取不到返回空串（调用方自动退回书名匹配）
+local function getCurrentBookMd5(ui)
+    if not ui then return "" end
+    local ok_s, md5 = pcall(function()
+        return ui.statistics and ui.statistics.doc_md5
+    end)
+    if ok_s and type(md5) == "string" and md5 ~= "" then return md5 end
+    local ok_d, value = pcall(function()
+        local path = ui.document and ui.document.file
+        if not path or path == "" then return nil end
+        local DocSettings = require("docsettings")
+        return DocSettings:open(path):readSetting("partial_md5_checksum")
+    end)
+    if ok_d and type(value) == "string" then return value end
+    return ""
+end
+
 -- buildTicketWidget：构建票型widget
 buildTicketWidget = function(ui, ticket_key, ref_date, on_close_callback)
     ref_date = ref_date or os.time()
@@ -240,18 +261,19 @@ buildTicketWidget = function(ui, ticket_key, ref_date, on_close_callback)
         if not mod then return nil end
     end
     if isTicketKey(ticket_key) then
-        -- 获取当前活动书籍标题
+        -- 获取当前活动书籍标题与 md5
         local book_title = ""
         if ui and ui.doc_props and ui.doc_props.display_title then
             book_title = ui.doc_props.display_title
         end
+        local book_md5 = getCurrentBookMd5(ui)
         local bb = BB.new(Screen:getWidth(), Screen:getHeight(), Screen.bb:getType())
         if not bb then return nil end
         -- ticket render 函数签名: (bb, x, y, w, h, ref_date)
-        -- book.lua 特殊: (bb, x, y, w, h, book_title, ref_date)
+        -- book.lua 特殊: (bb, x, y, w, h, book_title, ref_date, book_md5)
         local ok, err
         if ticket_key == "book" then
-            ok, err = pcall(mod.render, bb, 0, 0, Screen:getWidth(), Screen:getHeight(), book_title, ref_date)
+            ok, err = pcall(mod.render, bb, 0, 0, Screen:getWidth(), Screen:getHeight(), book_title, ref_date, book_md5)
         else
             ok, err = pcall(mod.render, bb, 0, 0, Screen:getWidth(), Screen:getHeight(), ref_date)
         end
@@ -398,7 +420,10 @@ function quicklookbox:onTap(_, ges_ev)
                 -- 命中按钮 → 执行回调后关闭
                 if hit.callback then
                     self:onClose()
-                    pcall(hit.callback)
+                    local ok_cb, err_cb = pcall(hit.callback)
+                    if not ok_cb then
+                        logger.warn(LOG_TAG, "按钮回调异常:", tostring(err_cb))
+                    end
                 else
                     self:onClose()
                 end
@@ -412,13 +437,16 @@ function quicklookbox:onTap(_, ges_ev)
         for _, hit in ipairs(widget.hit_books) do
             if pos.x >= hit.x and pos.x <= hit.x + hit.w
                and pos.y >= hit.y and pos.y <= hit.y + hit.h then
-                -- 命中书籍 → 打开后关闭
+                -- 命中书籍 → 先关闭（栈已清空），再于下一 tick 打开
+                self:onClose()
+                local cur = self.ui and self.ui.document and self.ui.document.file or nil
                 if hit.book and hit.book.path and hit.book.path ~= "" then
-                    self:onClose()
-                    local Utils = require("frontend/ui/utils")
-                    pcall(Utils.openBookThroughFileManager, nil, hit.book.path)
+                    local ok_open, err_open = pcall(open_book.openBook, cur, hit.book.path)
+                    if not ok_open then
+                        logger.warn(LOG_TAG, "打开书籍失败:", tostring(err_open))
+                    end
                 else
-                    self:onClose()
+                    logger.warn(LOG_TAG, "该书无可用路径（书名/md5 反查失败），仅关闭")
                 end
                 return true
             end

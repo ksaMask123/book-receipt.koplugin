@@ -2,8 +2,8 @@
 
 > KOReader 墨水屏插件 —— 为每一段阅读留下凭证。
 
-![Version](https://img.shields.io/badge/version-0.2.3-blue)
-![Release](https://img.shields.io/badge/release-v0.2.3-brightgreen)
+![Version](https://img.shields.io/badge/version-0.2.4-blue)
+![Release](https://img.shields.io/badge/release-v0.2.4-brightgreen)
 ![KOReader](https://img.shields.io/badge/KOReader-插件-red)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -49,7 +49,7 @@ Book Receipt（阅读小票）把你的阅读数据变成一张可以收藏的�
 ### 直接下载（推荐）
 
 前往 [Releases 页面](https://github.com/ksaMask123/book-receipt.koplugin/releases) 下载
-`book-receipt.koplugin-v0.2.3.tar.gz`，解压后把 `book-receipt.koplugin` 整个目录
+`book-receipt.koplugin-v0.2.4.tar.gz`，解压后把 `book-receipt.koplugin` 整个目录
 复制到 KOReader 的 `plugins/` 目录下，重启 KOReader 即可。
 
 ### 从源码安装
@@ -61,6 +61,17 @@ rsync -av book-receipt.koplugin/ /path/to/koreader/plugins/
 ```
 
 ## 版本记录
+
+### v0.2.4（2026-09-08）
+
+- 修复单书行程票「显示成上一本书」的问题：改为 md5 优先匹配（书名匹配作回退），
+  匹配不到时显示当前书名 +「本书暂无阅读记录」，不再回退成别人的书
+- 修复站台样式按钮点了没反应：原先调用了一个 KOReader 里根本不存在的前端模块，
+  错误又被静默吞掉；现改为插件自带的开书模块
+- 站台「继续阅读」和「正在阅读」改为跟随真实当前在读的书，不再受统计库落库时机影响
+  （统计插件要攒满 50 次翻页才写库，刚换书时会误判成上一本）
+- 新增书名→路径的 md5 兜底反查，解决书名对不上导致拿不到文件路径的问题
+- 开书失败不再无声无息：会写入日志（标签 `[BookReceipt]`）并弹出提示
 
 ### v0.2.3（2026-09-07）
 

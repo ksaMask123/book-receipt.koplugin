@@ -111,6 +111,214 @@
 
         <div class="version">
             <div class="version-header">
+                <span class="version-tag">v0.2.4</span>
+                <span class="version-date">2026-09-08</span>
+            </div>
+            <h3>正式发版：单书票错书修复 + 站台按钮恢复可用（合并 hotfix / hotfix2）</h3>
+            <div class="change-item">
+                <span class="badge badge-new">发版</span>
+                <strong>本版合并此前两个未升版的热修复，并同步 G / E 双端</strong>
+                <p style="margin:6px 0 0">hotfix（单书行程票显示成上一本书）与 hotfix2（站台按钮点了没反应）此前均只在 G 盘改动、未升版。
+                    本次真机验证通过后一并归入 <strong>v0.2.4</strong>：<code>_meta.lua</code> 版本 0.2.3 → <strong>0.2.4</strong>，
+                    <code>README.md</code> 补齐本版记录与下载文件名；随后以 G 盘为基准<strong>全量同步 E 副本</strong>，
+                    并发布 GitHub 发行版 <code>book-receipt.koplugin-v0.2.4.tar.gz</code>。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">修复</span>
+                <strong>单书行程票显示成上一本书（KPW4 用户反馈）</strong>
+                <p style="margin:6px 0 0">匹配顺序改为 <strong>md5 → 书名精确 → 子串</strong>；<strong>删除「回退到库里最新一条」</strong>
+                    （这正是错误显示别家书的元凶）。三轮全落空时用当前书名造一条零数据记录：
+                    票面仍是当前书，仅统计为空（时长/次数/平均单次显示「—」，提示行显示「本书暂无阅读记录」）。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">修复</span>
+                <strong>站台样式按钮全部失效</strong>
+                <p style="margin:6px 0 0">新增插件私有开书模块 <code>lib/open_book.lua</code>，替代不存在的
+                    <code>frontend/ui/utils</code>；「继续阅读」与「正在阅读」改为跟随<strong>真实当前在读的书</strong>，
+                    不再受统计库落库时机影响；新增书名→路径的 <strong>md5 兜底反查</strong>；开书失败不再静默，
+                    会写日志（标签 <code>[BookReceipt]</code>）并弹提示。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">验证</span>
+                <strong>真机验证（G:/koreader/crash.log 取证）</strong>
+                <p style="margin:6px 0 0">① <code>19:58:39 [BookReceipt] openBook: 目标即当前书，跳过重载</code>
+                    → 新代码确实执行（旧代码 require 必挂，永远打不出这行），且取到的是真实当前书；
+                    ② <code>19:59:12→17</code> 关旧文档 → ExitOptimization 清内存 →
+                    <code>opening file 神秘复苏.epub</code>，完整换书流程走通、零报错；
+                    ③ <code>19:58:54 单书票匹配: md5 title=噩梦使者</code> —— 库内书名「噩梦使者」与文件名
+                    「噩梦使徒.epub」不一致，<strong>md5 仍命中</strong>，md5 优先匹配实战价值实锤；
+                    ④ 无 <code>openBook 失败</code>、无 <code>该书无可用路径</code>，
+                    <code>frontend/ui/utils</code> / <code>openBookThroughFileManager</code> <strong>零命中</strong>。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">校验</span>
+                <strong>发版前技术校验</strong>
+                <ul style="margin:6px 0 0; padding-left:20px">
+                    <li>插件内 <strong>22 个 .lua 文件</strong> 全部 <code>luajit -bl</code> 语法 PASS</li>
+                    <li>桩测试：<code>book_receipt_selftest.lua</code> <strong>PASS=14 / FAIL=0</strong>（单书票匹配）</li>
+                    <li>桩测试：<code>station_button_selftest.lua</code> <strong>PASS=28 / FAIL=0</strong>（站台按钮与开书）</li>
+                    <li>G / E 全量 md5 比对<strong>逐字节一致</strong>；双端无 .bak 残留</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="version">
+            <div class="version-header">
+                <span class="version-tag">v0.2.3+hotfix2</span>
+                <span class="version-date">2026-09-08</span>
+            </div>
+            <h3>站台样式按钮恢复可用（CONTINUE / 书籍卡片，未升版，仅 G 盘改动）</h3>
+            <div class="change-item">
+                <span class="badge badge-fix">修复</span>
+                <strong>问题现象</strong>
+                <p style="margin:6px 0 0">实机反馈：站台样式的「继续阅读」按钮<strong>点了没反应</strong>——只关闭小票，什么都没发生，
+                    crash.log 里也查不到任何线索。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">前提纠正</span>
+                <strong>所谓"原设计功能"其实并不存在</strong>
+                <p style="margin:6px 0 0">回查母补丁 <code>2-book-receipt-shortcut-and-lockscreen.lua</code>（6833 行）：
+                    <code>paintHomeStation</code>（L6299–6500）内检索 <code>CONTINUE / 继续阅读</code> <strong>零命中</strong>；
+                    全文件检索 <code>addAction / action_hits / hit_books</code> <strong>零命中</strong>；
+                    L4481 <code>quicklookbox:onTap() return self:onClose()</code> —— 补丁版站台是<strong>纯看板，点哪都是关闭</strong>。
+                    现在的 CONTINUE 按钮是插件化时照母插件 readingline 搬来的<strong>新增元素</strong>，
+                    因此本次对齐的是母插件那套语义（继续阅读 = 打开当前书，点卡片 = 打开该书）。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">根因</span>
+                <strong>三层故障链：只修第一层等于白修</strong>
+                <p style="margin:6px 0 0">
+                    <strong>L1（致命）</strong>：<code>station.lua L455</code>、<code>main.lua L439</code> 两处
+                    <code>require("frontend/ui/utils")</code> —— 真机 <code>frontend/ui/</code> 下<strong>根本没有 utils.lua</strong>（已 ls 实锤），
+                    <code>openBookThroughFileManager</code> 是母插件 <code>rl_shelf_utils.lua L205</code> 的<strong>私有函数</strong>，
+                    移植时被误当成 KOReader 前端通用工具。station 那处还被 pcall 包着 → <strong>纯静默失效</strong>。<br>
+                    <strong>L2（数据）</strong>：<code>station.lua L236</code> 路径靠书名反查，两边标题来源不同
+                    （coverbrowser 抽取 vs 打开时显示名），对不上就是 <strong>nil</strong> → 就算 L1 修好，
+                    <code>main.lua</code> 判空后仍只关闭。<br>
+                    <strong>L3（语义）</strong>：<code>station.lua</code> 的"正在阅读"= 统计库最后读的一本，
+                    而 statistics 50 次翻页才落库 → 刚换书时是<strong>上一本书</strong> → 修好 L1 会<strong>打开错书</strong>（比失效更糟）。
+                </p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-improve">改动</span>
+                <strong>新增 <code>lib/open_book.lua</code>（插件私有开书出口）</strong>
+                <ul>
+                    <li>目标书 == 当前在读的书 → <strong>直接返回</strong>，不重复 showReader（避免无谓重载、打断阅读位置）</li>
+                    <li>否则 <code>UIManager:nextTick</code> 内 pcall：优先 <code>FileManager 实例:openFile()</code>，
+                        没有则 <code>ReaderUI:showReader()</code>（两者均已核实存在于真机）</li>
+                    <li>失败不再静默：<code>logger.warn(LOG_TAG, ...)</code> + InfoMessage 提示</li>
+                </ul>
+                <strong><code>styles/station.lua</code></strong>
+                <ul>
+                    <li>CONTINUE 改用 <code>current_path</code>（<code>ui.document.file</code>，真实当前书）优先，退回统计库推断</li>
+                    <li>「正在阅读」面板跟随真实当前书：库里有就沿用（保留统计），没有就用当前书信息造一条，
+                        <strong>根治站台也显示上一本书</strong>（与单书票 hotfix 同源病根）</li>
+                    <li>新增 md5→文件路径懒加载映射：书名反查失败时兜底，
+                        照抄官方 <code>statistics.koplugin main.lua L828</code> 的
+                        <code>hasSidecarFile → partial_md5_checksum</code> 快路径 + <code>util.partialMD5</code> 兜底</li>
+                </ul>
+                <strong><code>main.lua</code></strong>
+                <ul>
+                    <li>onTap 书籍点击改用 <code>open_book.openBook</code>，去掉坏 require</li>
+                    <li>按钮回调与开书两处 pcall 均补 <code>logger.warn(LOG_TAG, ...)</code></li>
+                    <li><strong>保持"先 onClose 再回调"顺序不变</strong>（栈已清空，比母插件"回调内关闭"更稳）</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">边界</span>
+                <strong>屏保路径不覆盖</strong>
+                <p style="margin:6px 0 0">锁屏/屏保下站台由 <code>ScreenSaverWidget</code>（modal）承载，点击不走
+                    <code>quicklookbox:onTap</code>，本就不响应；改动风险高，本次<strong>不涉及</strong>。
+                    另：当前书未落库时，进度/时长会显示 0 或「—」，这是诚实表现，优于显示上一本书。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">校验</span>
+                <strong>语法与桩测试</strong>
+                <ul>
+                    <li><code>luajit -bl</code> 三个文件全部 PASS（lib/open_book.lua、styles/station.lua、main.lua）</li>
+                    <li>桩测试 <strong>PASS=28 / FAIL=0</strong>：openBook 六分支（空路径/同路径短路/showReader/openFile 优先/无当前书/异常不外抛）、
+                        CONTINUE 取路径四例、current 跟随五例、pathFor 三级兜底五例</li>
+                    <li>G 盘无 .bak 残留；E 副本未改动（mtime 早于本次改动，且无 open_book.lua）</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-improve">待办</span>
+                <p style="margin:6px 0 0">真机验证通过后再决定是否升 v0.2.4 并同步 E 副本、更新发行版。</p>
+            </div>
+        </div>
+
+        <div class="version">
+            <div class="version-header">
+                <span class="version-tag">v0.2.3+hotfix</span>
+                <span class="version-date">2026-09-08</span>
+            </div>
+            <h3>单书行程票「显示错书」修复（档位 A+B，未升版，仅 G 盘改动）</h3>
+            <div class="change-item">
+                <span class="badge badge-fix">修复</span>
+                <strong>问题现象（KPW4 用户反馈）</strong>
+                <p style="margin:6px 0 0">手势唤出单书行程票后，生成的<strong>不是当前书籍</strong>的小票（书名/封面/进度/行程全是上一本书），
+                    「点好几次、隔段时间」才变成当前书。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">根因</span>
+                <strong>统计库里没有当前书 → 静默回退成「库里最新一条」</strong>
+                <p style="margin:6px 0 0"><code>ui.doc_props.display_title</code> 一直是对的，但单书票要用书名去 statistics 库匹配阅读记录；
+                    上游 statistics.koplugin <strong>每 50 次翻页才 insertDB 落库</strong>（<code>MAX_PAGETURNS_BEFORE_FLUSH = 50</code>），
+                    新书刚翻开就唤出必然匹配不到 → 原代码回退 <code>rows[#rows]</code>（= 上一本书），整票画成别人的书。
+                    「隔段时间才对」正是等落库；反复唤出不触发落库。与设备无关，换书后 50 页内唤出必触发。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">方案 A</span>
+                <strong>不再回退，零数据占位</strong>
+                <p style="margin:6px 0 0">三轮匹配（md5 / 书名精确 / 子串）全落空时，用<strong>当前书名构造一条零数据记录</strong>，
+                    票面仍是当前书（封面也按当前书名取），只是统计为空：</p>
+                <ul style="margin:6px 0 0;padding-left:20px">
+                    <li>书名下方提示行改为「本书暂无阅读记录 · 继续阅读或待机后自动统计」</li>
+                    <li>阅读时长 / 阅读次数 / 平均单次 显示「—」，进度 0%、「0 / —」页</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">方案 B</span>
+                <strong>md5 优先匹配</strong>
+                <ul style="margin:6px 0 0;padding-left:20px">
+                    <li>新增 <code>main.lua getCurrentBookMd5(ui)</code>：优先取 <code>ui.statistics.doc_md5</code>，
+                        兜底 <code>DocSettings:open(ui.document.file):readSetting("partial_md5_checksum")</code>；全程 pcall，取不到返回空串</li>
+                    <li><code>render()</code> 新增第 8 个参数 <code>book_md5</code>（仅 book 票型传入，其余票型不受影响）</li>
+                    <li>匹配顺序改为 <strong>md5 → 书名精确 → 子串</strong>，md5 命中即锁定，杜绝重名/书名改动串书</li>
+                    <li>新增匹配方式日志：<code>[BookReceipt] 单书票匹配: md5|title|fuzzy|none(空数据)</code>，便于按 LOG_TAG 查 crash.log</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">影响</span>
+                <strong>改动文件</strong>
+                <ul style="margin:6px 0 0;padding-left:20px">
+                    <li><code>main.lua</code>：新增 <code>getCurrentBookMd5</code>（buildTicketWidget 之前）、传入 <code>book_md5</code></li>
+                    <li><code>tickets/book.lua</code>：render 签名加参、匹配逻辑重写、空数据占位与提示文案、新增 logger 依赖</li>
+                    <li>本次仅改 <strong>G 盘</strong>，E 副本保持 v0.2.3 原样（未同步）；<code>_meta.lua</code> 未升版（仍 0.2.3）</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">验证</span>
+                <strong>语法 + 桩测试全绿（PASS=14 / FAIL=0）</strong>
+                <ul style="margin:6px 0 0;padding-left:20px">
+                    <li><code>luajit -bl</code>：main.lua、book.lua 均 PASS</li>
+                    <li>用例 1 md5 命中：票面为当前书，不含库中另一本</li>
+                    <li>用例 2 md5 落空：书名精确匹配回退正确</li>
+                    <li>用例 3 全不匹配：票面是当前书名 + 「本书暂无阅读记录」，<strong>不含任何其它书名</strong>（即旧行为已根除）</li>
+                    <li>用例 4 库为空：不崩溃</li>
+                    <li>G 盘无 .bak 残留</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">待办</span>
+                <strong>真机验证（用户侧）</strong>
+                <p style="margin:6px 0 0">换一本新书、翻 1~2 页就唤出单书票，应显示<strong>当前书名 + 暂无阅读记录</strong>，
+                    而不是上一本书；继续读到落库后再唤出，应正常显示统计。</p>
+            </div>
+        </div>
+
+        <div class="version">
+            <div class="version-header">
                 <span class="version-tag">v0.2.3</span>
                 <span class="version-date">2026-09-07</span>
             </div>
@@ -162,6 +370,23 @@
                     <li>单本日：封面顶边贴合格子内沿（误差 ≤2px），确认<strong>恢复占满</strong>且尺寸回到 75×104</li>
                     <li>所有格子：白牌绘制序号均大于同格封面（<strong>绘制顺序在后</strong>）</li>
                     <li><code>luajit -bl month.lua</code> 语法 PASS；G 盘无 .bak 残留</li>
+                </ul>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">补记</span>
+                <strong>真机版本声明未跟随：G 盘 <code>_meta.lua</code> 仍写 0.2.0</strong>
+                <p style="margin:6px 0 0">发版后复核发现：G 盘运行代码已是 v0.2.3，但 <code>_meta.lua</code> 的
+                    <code>version</code> 字段仍为 <strong>"0.2.0"</strong>、description 仍是旧措辞，
+                    <code>README.md</code> 也停在 v0.2.0（无下载章节、无 v0.2.1~v0.2.3 记录）。
+                    由于 KOReader 插件管理器的版本唯一来源是 <code>_meta.lua</code>，真机上会显示 0.2.0，
+                    形成「跑的是 v0.2.3、名牌写 0.2.0」的错位。</p>
+                <ul style="margin:6px 0 0;padding-left:20px">
+                    <li>成因：早期 G→E 同步时这两个非运行期文件被旧版覆盖，之后 v0.2.1~v0.2.3 只改运行代码并在 E 侧更新了它们，未回灌 G</li>
+                    <li>处置：把 E 侧 <code>_meta.lua</code>（version=0.2.3、十种样式轮换池描述）与 <code>README.md</code> 覆盖到 G 盘，<strong>运行代码一个字节未动</strong></li>
+                    <li>校验：双端全量 md5 diff（排除 .git / audit）<strong>104 个文件逐字节一致</strong>；
+                        <code>luajit -bl _meta.lua</code> 语法 PASS；G 盘无 .bak 残留</li>
+                    <li>改进：今后「G/E 一致性核验」须把 <code>_meta.lua</code>、<code>README.md</code> 一并纳入全量 md5 diff，
+                        不能只比对 .lua 运行代码</li>
                 </ul>
             </div>
         </div>
