@@ -24,6 +24,8 @@ local util = require("util")
 local ffiUtil = require("ffi/util")
 local rl = require("lib.rl_reference")
 local font_pref = require("lib.font_pref")
+local lastread = require("lib.lastread")
+local logger = require("logger")
 
 local LOG_TAG = "[BookReceipt.Film]"
 
@@ -101,19 +103,46 @@ local function getWeightedTruncatedString(str, max_weight)
 end
 
 local function build(ui, state, on_close_callback)
-    if not ui or not ui.document then return nil end
+    -- 没有打开书籍时不再直接放弃渲染，改用「最近阅读的书」兜底。
+    -- 原写法 `if not ui or not ui.document then return nil end` 会导致：
+    --   锁屏 → main.lua 回退系统默认屏保；手势 → 弹出「无法显示阅读摘要」
+    -- 也就是用户看到的"胶片唤不出"。
+    -- 兜底只在"确实没有活动文档"时启用，绝不覆盖"有书但统计库尚未落库"的情形
+    -- （后者若被覆盖，会退回上一本书，即 v0.2.3 已修掉的旧 bug）。
+    if not ui then return nil end
+
+    local has_document = ui.document ~= nil
+    local last_read = nil
+    if not has_document then
+        local ok_lr, lr = pcall(lastread.resolve)
+        if ok_lr then last_read = lr end
+        if not last_read then
+            logger.dbg(LOG_TAG, "无活动文档且无最近阅读记录，胶片放弃渲染")
+            return nil
+        end
+    end
 
     local doc_props = ui.doc_props or {}
     local book_title = doc_props.display_title or ""
     local doc_settings = ui.doc_settings and ui.doc_settings.data or {}
-    local doc_page_no = (state and state.page) or 1
-    local doc_page_total = doc_settings.doc_pages or 1
+    local doc_page_no, doc_page_total
+    -- 页数是否可信：无活动文档且统计库没给页数时，票面显示占位符，不编造 1/1
+    local has_page_data = true
+    if has_document then
+        doc_page_no = (state and state.page) or 1
+        doc_page_total = doc_settings.doc_pages or 1
+    else
+        if book_title == "" then book_title = last_read.title or "" end
+        doc_page_no = last_read.page or 0
+        doc_page_total = last_read.pages or 0
+        if doc_page_total <= 0 or doc_page_no <= 0 then has_page_data = false end
+    end
     if doc_page_total <= 0 then doc_page_total = 1 end
     if doc_page_no < 1 then doc_page_no = 1 end
     if doc_page_no > doc_page_total then doc_page_no = doc_page_total end
 
-    local page_left = math.max(doc_page_total - doc_page_no, 0)
-    local toc = ui.toc
+    local page_left = has_page_data and math.max(doc_page_total - doc_page_no, 0) or 0
+    local toc = has_document and ui.toc or nil
     local chapter_title = ""
     local chapter_total = doc_page_total
     local chapter_left = 0
@@ -129,6 +158,10 @@ local function build(ui, state, on_close_callback)
 
     local statistics = ui.statistics
     local avg_time_per_page = statistics and statistics.avg_time
+    -- 无活动文档时没有 ui.statistics，改用统计库累计值反推每页均速
+    if (not avg_time_per_page) and last_read then
+        avg_time_per_page = last_read.avg_time
+    end
     local book_time_left = secs_to_timestring(avg_time_per_page and avg_time_per_page * page_left)
     local chapter_time_left = secs_to_timestring(avg_time_per_page and avg_time_per_page * chapter_left)
     local current_time = datetime.secondsToHour(os.time(), G_reader_settings:isTrue("twelve_hour_clock")) or ""
@@ -268,36 +301,70 @@ local function build(ui, state, on_close_callback)
             book_total_time_text = string.format("全书已阅读：%s", secs_to_timestring(tonumber(brt) or 0))
         end
     end
+    -- 无活动文档时用统计库累计时长补上
+    if (not book_total_time_text) and last_read and (last_read.total_time or 0) > 0 then
+        book_total_time_text = string.format("全书已阅读：%s", secs_to_timestring(last_read.total_time))
+    end
 
-    local bookbox = databox("全书", bookboxtitle, doc_page_no, doc_page_total, book_time_left, doc_page_no, doc_page_total, {
+    local bookbox = databox("全书", bookboxtitle, doc_page_no, doc_page_total, book_time_left,
+        has_page_data and doc_page_no or "--",
+        has_page_data and doc_page_total or "--", {
         hide_title = content_mode == K.CONTENT_MODE_HIGHLIGHT_PROGRESS,
         hide_time = content_mode == K.CONTENT_MODE_HIGHLIGHT_PROGRESS,
     })
-    local chapterbox = content_mode ~= K.CONTENT_MODE_HIGHLIGHT_PROGRESS and databox("本章", chapter_title, chapter_done, chapter_total, chapter_time_left) or nil
+    -- 本章进度：目录只有真正打开文档才存在，无书时必然取不到。
+    -- 按用户要求保留等高占位块（结构与正常"本章"一致，数字换成占位符），
+    -- 既不让票面塌陷，也不显示编造出来的 1/1 假进度。
+    local chapterbox
+    if content_mode ~= K.CONTENT_MODE_HIGHLIGHT_PROGRESS then
+        if toc then
+            chapterbox = databox("本章", chapter_title, chapter_done, chapter_total, chapter_time_left)
+        else
+            chapterbox = databox("本章", "暂无本章信息", 0, 0, "--", "--", "--")
+        end
+    end
 
     local bg_choice = G_reader_settings:readSetting(K.BG_SETTING)
     local show_cover = not (Device.screen_saver_mode and bg_choice == "book_cover")
     local top_split_widget = nil
 
     -- 构建卡片顶部的封面、日期区域
-    if show_cover and ui.bookinfo and ui.document then
-        local cover_bb = ui.bookinfo:getCoverImage(ui.document)
-        if cover_bb then
-            local cover_scale = G_reader_settings:readSetting(K.COVER_SCALE_SETTING) or 1
-            local cover_width = cover_bb:getWidth()
-            local cover_height = cover_bb:getHeight()
-            local target_width_ratio = 0.25
-            local max_width = math.floor(widget_width * target_width_ratio * cover_scale)
-            local max_height = math.floor(Screen:getHeight() / 5 * cover_scale)
-            local scale = math.min(1, max_width / cover_width, max_height / cover_height)
-            if scale < 1 then
-                local scaled_w = math.max(1, math.floor(cover_width * scale))
-                local scaled_h = math.max(1, math.floor(cover_height * scale))
-                cover_bb = RenderImage:scaleBlitBuffer(cover_bb, scaled_w, scaled_h, true)
-                cover_width = scaled_w
-                cover_height = scaled_h
+    local cover_scale = G_reader_settings:readSetting(K.COVER_SCALE_SETTING) or 1
+    local max_cover_width = math.max(1, math.floor(widget_width * 0.25 * cover_scale))
+    local max_cover_height = math.max(1, math.floor(Screen:getHeight() / 5 * cover_scale))
+    local cover_image_widget = nil
+    if show_cover then
+        if has_document and ui.bookinfo then
+            -- 原路径：从文档实例取封面，再按目标尺寸等比缩放
+            local ok_cover, cover_bb = pcall(function()
+                return ui.bookinfo:getCoverImage(ui.document)
+            end)
+            if not ok_cover then cover_bb = nil end
+            if cover_bb then
+                local cover_width = cover_bb:getWidth()
+                local cover_height = cover_bb:getHeight()
+                local scale = math.min(1, max_cover_width / cover_width, max_cover_height / cover_height)
+                if scale < 1 then
+                    local scaled_w = math.max(1, math.floor(cover_width * scale))
+                    local scaled_h = math.max(1, math.floor(cover_height * scale))
+                    cover_bb = RenderImage:scaleBlitBuffer(cover_bb, scaled_w, scaled_h, true)
+                    cover_width = scaled_w
+                    cover_height = scaled_h
+                end
+                cover_image_widget = ImageWidget:new{ image = cover_bb, width = cover_width, height = cover_height }
             end
-            local cover_image_widget = ImageWidget:new{ image = cover_bb, width = cover_width, height = cover_height }
+        elseif last_read and last_read.path ~= "" then
+            -- 无活动文档：按文件路径取封面（CoverBrowser 缓存优先，不打开文档，避免阻塞锁屏）
+            local ok_cover, cover_widget = pcall(rl.getBookCoverFromPath, last_read.path, max_cover_width, max_cover_height)
+            if ok_cover and cover_widget then
+                cover_image_widget = cover_widget
+            else
+                logger.dbg(LOG_TAG, "无书封面提取失败:", tostring(cover_widget))
+            end
+        end
+    end
+    if show_cover and cover_image_widget then
+        do
             local framed_cover = FrameContainer:new{ radius = 15, bordersize = 2, padding = 0, background = BB.COLOR_WHITE, cover_image_widget }
             local now_t = os.time()
             local cal_day = os.date("%d", now_t)
@@ -380,7 +447,8 @@ local function build(ui, state, on_close_callback)
         table.insert(content_children, VerticalSpan:new{ width = db_padding })
 
         -- 获取文件名作为胶片标题（原补丁逻辑）
-        local file_path = ui.document and ui.document.file or ""
+        -- 无活动文档时用最近阅读书的文件名，保证胶片标题栏不是空的
+        local file_path = (ui.document and ui.document.file) or (last_read and last_read.path) or ""
         local raw_file_name = file_path ~= "" and ffiUtil.basename(file_path) or book_title
         local name_no_ext = raw_file_name:match("^(.+)%.[^%.]+$")
         if name_no_ext then raw_file_name = name_no_ext end

@@ -23,6 +23,7 @@ local TextWidget = require("ui/widget/textwidget")
 local UIManager = require("ui/uimanager")
 local logger = require("logger")
 local open_book = require("lib.open_book")
+local lastread = require("lib.lastread")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 
@@ -267,6 +268,18 @@ buildTicketWidget = function(ui, ticket_key, ref_date, on_close_callback)
             book_title = ui.doc_props.display_title
         end
         local book_md5 = getCurrentBookMd5(ui)
+        -- 没打开任何书时（锁屏 / 书库界面唤出）书名与 md5 都是空的，
+        -- 用「最近阅读的书」兜底，避免单书票退化成空白零数据票。
+        -- 只在确实无活动文档时兜底：有书但统计库尚未落库的情形不能碰，
+        -- 否则会退回上一本书（v0.2.3 已修掉的旧 bug）。
+        if (not ui or not ui.document) and book_title == "" and book_md5 == "" then
+            local ok_lr, lr = pcall(lastread.resolve)
+            if ok_lr and lr then
+                book_title = lr.title or ""
+                book_md5 = lr.md5 or ""
+                logger.dbg(LOG_TAG, "单书票兜底最近阅读:", book_title, book_md5)
+            end
+        end
         local bb = BB.new(Screen:getWidth(), Screen:getHeight(), Screen.bb:getType())
         if not bb then return nil end
         -- ticket render 函数签名: (bb, x, y, w, h, ref_date)
@@ -496,10 +509,38 @@ if Dispatcher and Dispatcher.registerAction then
         event = "QuickLook",
         title = _("Book receipt"),
         reader = true,
+        filemanager = true,  -- 书库界面（文件管理器）同样可用
     })
     logger.info(LOG_TAG, "已注册 quicklookbox_action 到 Dispatcher")
 else
     logger.warn(LOG_TAG, "Dispatcher不可用，手势注册跳过")
+end
+
+-- 文件管理器侧的入口：让书库界面（没打开任何书时）也能用手势唤出小票。
+-- 此前只有 ReaderUI:onQuickLook，没打开书就完全没有触发途径。
+-- 此处传入的 ui 是 FileManager 实例（无 document），
+-- 样式内部会走「最近阅读」兜底渲染，不再直接放弃。
+local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
+if ok_fm and FileManager and not FileManager._book_receipt_quicklook then
+    FileManager._book_receipt_quicklook = true
+    function FileManager:onQuickLook()
+        local ui = self
+        UIManager:nextTick(function()
+            if not ui then return end
+            local ok, widget = pcall(quicklookbox.new, quicklookbox, {
+                ui = ui,
+                document = nil,
+                state = nil,
+            })
+            if not ok or not widget then
+                logger.warn(LOG_TAG, "QuickLook(FileManager)构建失败:", tostring(widget))
+                return
+            end
+            UIManager:show(widget)
+        end)
+    end
+else
+    logger.warn(LOG_TAG, "FileManager 不可用，书库手势入口跳过")
 end
 
 -- 覆写Screensaver.show：锁屏时展示阅读小票
@@ -509,12 +550,29 @@ if not Screensaver._book_receipt_patched then
     Screensaver._book_receipt_patched = true
     Screensaver.show = function(self)
         local user_wants_book_receipt = G_reader_settings:readSetting("screensaver_type") == "book_receipt"
+        -- 锁屏诊断：记录设置里读到的屏保类型与运行时类型，便于确认插件是否接管
+        logger.info(LOG_TAG, "[锁屏诊断] 设置screensaver_type=",
+            tostring(G_reader_settings:readSetting("screensaver_type")),
+            " 运行时self.screensaver_type=", tostring(self.screensaver_type),
+            " -> ", user_wants_book_receipt and "插件接管" or "让位系统屏保")
         if not user_wants_book_receipt and self.screensaver_type ~= "book_receipt" then
+            logger.info(LOG_TAG, "[锁屏诊断] 已让位系统屏保（非阅读小票类型）")
             return orig_screensaver_show(self)
         end
         if user_wants_book_receipt then self.screensaver_type = "book_receipt" end
+        -- 关键修复：原生 Screensaver:show() 开头会置 Device.screen_saver_mode = true
+        -- （frontend/ui/screensaver.lua:455，注释：通知设备层我们已进入屏保，
+        --  使其知道在电源事件上该挂起还是恢复）。
+        -- Kindle 唤醒时 Kindle:outofScreenSaver 以 `if self.screen_saver_mode then` 为门，
+        -- 只有该标志为真才会调用 Screensaver:close() 关闭屏保。
+        -- 插件覆写 show 后若漏设此标志，唤醒时不会关闭屏保，
+        -- 屏保会一直留在屏幕上，直到下一次触摸才被别的路径关掉。
+        Device.screen_saver_mode = true
+        logger.info(LOG_TAG, "[锁屏诊断] 已置 Device.screen_saver_mode=true（唤醒时据此关闭屏保）")
         local ui = self.ui or ReaderUI.instance
         local style = getLockscreenEffectiveStyle()
+        logger.info(LOG_TAG, "[锁屏诊断] 本次锁屏样式=", tostring(style),
+            " 有活动文档=", tostring(ui and ui.document and true or false))
         if self.screensaver_widget then
             UIManager:close(self.screensaver_widget)
             self.screensaver_widget = nil
@@ -523,6 +581,7 @@ if not Screensaver._book_receipt_patched then
             if self.close then self:close() end
             UIManager:setDirty(nil, "full")
         end, style)
+        logger.info(LOG_TAG, "[锁屏诊断] 小票构建结果=", receipt_widget and "成功" or "失败(将回退默认屏保)")
         if receipt_widget then
             self.screensaver_widget = ScreenSaverWidget:new{
                 widget = receipt_widget,

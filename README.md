@@ -2,7 +2,7 @@
 
 > KOReader 墨水屏插件 —— 为每一段阅读留下凭证。
 
-![Version](https://img.shields.io/badge/version-0.2.4-blue)
+![Version](https://img.shields.io/badge/version-0.2.5-blue)
 ![Release](https://img.shields.io/badge/release-v0.2.4-brightgreen)
 ![KOReader](https://img.shields.io/badge/KOReader-插件-red)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -49,7 +49,7 @@ Book Receipt（阅读小票）把你的阅读数据变成一张可以收藏的�
 ### 直接下载（推荐）
 
 前往 [Releases 页面](https://github.com/ksaMask123/book-receipt.koplugin/releases) 下载
-`book-receipt.koplugin-v0.2.4.tar.gz`，解压后把 `book-receipt.koplugin` 整个目录
+`book-receipt.koplugin-v0.2.5.tar.gz`，解压后把 `book-receipt.koplugin` 整个目录
 复制到 KOReader 的 `plugins/` 目录下，重启 KOReader 即可。
 
 ### 从源码安装
@@ -61,6 +61,17 @@ rsync -av book-receipt.koplugin/ /path/to/koreader/plugins/
 ```
 
 ## 版本记录
+
+### v0.2.5（2026-09-10）
+
+- 抽公共模块「查最近阅读」`lib/lastread.lua`：单书票与胶片样式现在都能在无打开书籍时，
+  从阅读统计库取最近一本的真实数据，锁屏不再空白
+- 胶片样式无书也能唤出：解除 `film.lua` 硬性早退，无文档时走最近阅读兜底（封面/书名/进度）
+- 无书时「本章进度」保留占位块以维持票面高度，不再塌陷
+- 书库界面（FileManager）也能用手势唤出小票（方案 D：Dispatcher 增加 `filemanager = true` + `onQuickLook`）
+- 修复锁屏唤醒后小票不消失：接管 `Screensaver.show` 后补 `Device.screen_saver_mode = true`，
+  让 Kindle 唤醒时据此正确关闭屏保
+- 真机 9 样式验证全部通过；屏保诊断日志保留
 
 ### v0.2.4（2026-09-08）
 

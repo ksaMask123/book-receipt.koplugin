@@ -111,6 +111,56 @@
 
         <div class="version">
             <div class="version-header">
+                <span class="version-tag">v0.2.5</span>
+                <span class="version-date">2026-09-10</span>
+            </div>
+            <h3>正式发版：无书兜底 + 书库手势 + 锁屏唤醒修复</h3>
+            <div class="change-item">
+                <span class="badge badge-new">新增</span>
+                <strong>公共模块「查最近阅读」<code>lib/lastread.lua</code></strong>
+                <p style="margin:6px 0 0">把「取最近阅读的书籍数据」抽成独立模块，供单书票与胶片样式共用：
+                    书名 / md5 / 路径 / 总页数 / 末页 / 累计时长 / 每页均速全 <code>pcall</code> 保护；
+                    无打开书籍时也能从统计库取最近一本真实数据，锁屏不再空白。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">修复</span>
+                <strong>胶片样式无书也能唤出</strong>
+                <p style="margin:6px 0 0">解除 <code>film.lua</code> 的硬性早退
+                    <code>if not ui or not ui.document then return nil end</code>；
+                    无文档时改走最近阅读兜底（封面 / 书名 / 进度），封面改调
+                    <code>rl.getBookCoverFromPath(path)</code>。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">优化</span>
+                <strong>无书时「本章进度」占位保持高度</strong>
+                <p style="margin:6px 0 0">无打开书籍时该块输出占位「暂无本章信息 / — / — / —」，
+                    维持票面布局不塌陷。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">新增</span>
+                <strong>书库界面（FileManager）手势唤出（方案 D）</strong>
+                <p style="margin:6px 0 0">Dispatcher 增加 <code>filemanager = true</code>，
+                    新增 <code>FileManager:onQuickLook</code>（<code>pcall</code> + <code>_book_receipt_quicklook</code>
+                    幂等守卫），书库里也能用手势调出小票。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-fix">修复</span>
+                <strong>锁屏唤醒后小票不消失</strong>
+                <p style="margin:6px 0 0">接管 <code>Screensaver.show</code> 后补
+                    <code>Device.screen_saver_mode = true</code>，
+                    Kindle 唤醒时以 <code>if self.screen_saver_mode then</code> 为门据此正确关闭屏保，
+                    不再需要点一下屏幕才消失。</p>
+            </div>
+            <div class="change-item">
+                <span class="badge badge-new">验证</span>
+                <strong>真机 9 样式验证全部通过</strong>
+                <p style="margin:6px 0 0">锁屏诊断日志（<code>[锁屏诊断]</code>）保留；
+                    9 种样式构建成功、屏保接管与唤醒关闭均正常。</p>
+            </div>
+        </div>
+
+        <div class="version">
+            <div class="version-header">
                 <span class="version-tag">v0.2.4</span>
                 <span class="version-date">2026-09-08</span>
             </div>
